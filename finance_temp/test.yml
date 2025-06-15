@@ -1,0 +1,43 @@
+name: Daily Web Scraper
+
+on:
+  schedule:
+    - cron: '0 1 * * *'  # 每天 UTC+1 點（台灣時間早上 9 點）
+  workflow_dispatch:      # 允許手動執行
+
+jobs:
+  run-scraper:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          pip install requests beautifulsoup4
+
+      - name: Run spider.py and save output
+        run: |
+          python spider.py > output.txt
+          echo "Updated at $(date)" >> output.txt
+
+      - name: Set up SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan github.com >> ~/.ssh/known_hosts
+
+      - name: Commit and push output
+        run: |
+          git config --global user.name "GitHub Action"
+          git config --global user.email "action@github.com"
+          git add output.txt
+          git commit -m "Auto update at $(date '+%Y-%m-%d %H:%M')" || echo "No changes"
+          git push git@github.com:${{ github.repository }}.git HEAD:main
